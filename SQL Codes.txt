@@ -1,0 +1,92 @@
+Solution 1:
+
+select distinct market 
+from dim_customer
+where region = 'APAC'
+
+Solution 2: 
+
+select round((sum(case when fiscal_year = 2021 then 1 else 0 end) - sum(case when fiscal_year = 2020 then 1 else 0 end))*100/count(fiscal_year),2) as percentage_increase
+from fact_gross_price  ##FINAL ANS = 15.37##
+
+Solution 3:
+
+select segment, count(distinct product) as product_count
+from dim_product
+group by segment
+order by count(distinct product) desc
+
+Solution 4:
+
+with cte as (
+select segment, count(case when fiscal_year = 2020 then product else null end) as product_count_2020, 
+count(case when fiscal_year = 2021 then product else null end) as product_count_2021
+from dim_product left join fact_gross_price
+on dim_product.product_code = fact_gross_price.product_code
+group by segment)
+
+select * , (product_count_2021 - product_count_2020) as difference
+from cte
+
+Solution 5:
+
+(select fact_manufacturing_cost.product_code, product, manufacturing_cost
+from 
+fact_manufacturing_cost join dim_product on fact_manufacturing_cost.product_code = dim_product.product_code
+order by manufacturing_cost desc limit 1)
+
+union 
+
+(select fact_manufacturing_cost.product_code, product, manufacturing_cost
+from 
+fact_manufacturing_cost join dim_product on fact_manufacturing_cost.product_code = dim_product.product_code
+order by manufacturing_cost limit 1)
+
+Solution 6:
+
+select customer, avg(pre_invoice_discount_pct)*100 as average_discount_percentage 
+from fact_pre_invoice_deductions right join dim_customer on
+fact_pre_invoice_deductions.customer_code = dim_customer.customer_code
+where market = 'India' and fiscal_year = 2021
+group by customer
+
+Solution 7:
+
+select fact_gross_price.fiscal_year, month(date) month, sum(gross_price) as gross_sales_amount
+from 
+fact_sales_monthly join fact_gross_price on fact_sales_monthly.product_code = fact_gross_price.product_code
+group by fiscal_year, month(date)
+order by fact_gross_price.fiscal_year, gross_sales_amount
+
+Solution 8:
+
+select quarter(date) as quarter, sum(sold_quantity) as total_sold_quantity
+from fact_sales_monthly
+where fiscal_year = 2020
+group by quarter(date)
+order by total_sold_quantity
+
+Solution 9:
+
+with cte as(
+select channel, sum(sold_quantity)/1000000 as gross_sales_mln
+from dim_customer join fact_sales_monthly on dim_customer.customer_code = fact_sales_monthly.customer_code
+where fiscal_year = 2021
+group by channel)
+
+select *, round(gross_sales_mln*100/(select sum(gross_sales_mln) from cte),2) as percentage
+from cte 
+
+Solution 10:
+
+with cte as (
+select division, product, sum(sold_quantity) as total_sold_quantity, 
+rank() over(partition by division order by sum(sold_quantity) desc) as rank1
+from 
+dim_product join fact_sales_monthly on dim_product.product_code = fact_sales_monthly.product_code
+where fiscal_year = 2021
+group by division, product)
+
+select *
+from cte
+where rank1 < 4
